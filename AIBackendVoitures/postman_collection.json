@@ -1,0 +1,134 @@
+{
+  "info": {
+    "name": "AI Marketplace API - Voitures",
+    "description": "Collection d'API pour gérer les voitures avec MySQL",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Créer une voiture",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"matricule\": \"TN001\",\n  \"marque\": \"Toyota\",\n  \"modele\": \"Corolla\",\n  \"annee\": 2022,\n  \"puissance\": 120,\n  \"cylindres\": 4,\n  \"carburant\": \"Essence\",\n  \"transmission\": \"Automatique\",\n  \"traction\": \"Avant\",\n  \"prix\": 35000\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/voitures",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "voitures"]
+        }
+      }
+    },
+    {
+      "name": "2. Récupérer toutes les voitures",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:3000/api/voitures",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "voitures"]
+        }
+      }
+    },
+    {
+      "name": "3. Récupérer une voiture",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:3000/api/voitures/TN001",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "voitures", "TN001"]
+        }
+      }
+    },
+    {
+      "name": "4. Modifier une voiture",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prix\": 37000,\n  \"puissance\": 130\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/voitures/TN001",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "voitures", "TN001"]
+        }
+      }
+    },
+    {
+      "name": "5. Supprimer une voiture",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "http://localhost:3000/api/voitures/TN001",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "voitures", "TN001"]
+        }
+      }
+    },
+    {
+      "name": "6. Compter les voitures",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:3000/api/voitures/stats/count",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "voitures", "stats", "count"]
+        }
+      }
+    },
+    {
+      "name": "7. Rechercher des voitures",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:3000/api/voitures/search/filter?marque=Toyota&prixMin=30000&prixMax=40000",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "voitures", "search", "filter"],
+          "query": [
+            {
+              "key": "marque",
+              "value": "Toyota"
+            },
+            {
+              "key": "prixMin",
+              "value": "30000"
+            },
+            {
+              "key": "prixMax",
+              "value": "40000"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
