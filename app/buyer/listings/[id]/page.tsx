@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -22,6 +22,7 @@ import {
   Shield,
   AlertTriangle,
   CheckCircle2,
+  X,
 } from "lucide-react"
 import Link from "next/link"
 import { getListingById } from "@/lib/mock-data"
@@ -33,7 +34,19 @@ export default function ListingDetailPage() {
   const router = useRouter()
   const params = useParams()
   const [listing, setListing] = useState<CarListing | null>(null)
-  const [showInsuranceEstimate, setShowInsuranceEstimate] = useState(false)
+
+  // Modal + Form state
+  const [showInsuranceModal, setShowInsuranceModal] = useState(false)
+  const [loadingEstimate, setLoadingEstimate] = useState(false)
+  const [riskScore, setRiskScore] = useState<number | null>(null)
+  const [insuranceCost, setInsuranceCost] = useState<number | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    carYear: 0,
+    carValue: 0,
+    numberOfAccidents: 0,
+    yearsOfExperience: 0,
+  })
 
   useEffect(() => {
     if (!isLoading && (!user || user.role !== "buyer")) {
@@ -43,6 +56,12 @@ export default function ListingDetailPage() {
       const found = getListingById(params.id as string)
       if (found) {
         setListing(found)
+        setFormData({
+          carYear: found.year,
+          carValue: found.price,
+          numberOfAccidents: (found as any).numberOfAccidents || 0,
+          yearsOfExperience: (found as any).yearsOfExperience || 0,
+        })
       }
     }
   }, [user, isLoading, router, params.id])
@@ -54,6 +73,36 @@ export default function ListingDetailPage() {
   const priceDiff = listing.predictedPrice
     ? ((listing.price - listing.predictedPrice) / listing.predictedPrice) * 100
     : 0
+
+  const handleCalculate = async () => {
+    setLoadingEstimate(true)
+    try {
+      const response = await fetch("http://127.0.0.1:5000/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
+      const data = await response.json()
+      setRiskScore(data.riskScore)
+      setInsuranceCost(data.insuranceCost)
+      setMessage("Estimation générée avec succès !")
+      setShowInsuranceModal(false)
+    } catch (err) {
+      console.error(err)
+      setMessage("Erreur lors du calcul de l'assurance.")
+    } finally {
+      setLoadingEstimate(false)
+    }
+  }
+
+  const riskLabel =
+    riskScore !== null
+      ? riskScore < 0.3
+        ? "Faible"
+        : riskScore < 0.6
+        ? "Moyen"
+        : "Élevé"
+      : null
 
   return (
     <div className="min-h-screen bg-background">
@@ -124,13 +173,11 @@ export default function ListingDetailPage() {
                 <AlertDescription>
                   {priceDiff < 0 ? (
                     <>
-                      Ce prix est <strong>{Math.abs(priceDiff).toFixed(1)}% inférieur</strong> au prix prédit. C'est
-                      potentiellement une bonne affaire!
+                      Ce prix est <strong>{Math.abs(priceDiff).toFixed(1)}% inférieur</strong> au prix prédit.
                     </>
                   ) : (
                     <>
-                      Ce prix est <strong>{priceDiff.toFixed(1)}% supérieur</strong> au prix prédit. Vous pourriez
-                      négocier.
+                      Ce prix est <strong>{priceDiff.toFixed(1)}% supérieur</strong> au prix prédit.
                     </>
                   )}
                 </AlertDescription>
@@ -142,8 +189,7 @@ export default function ListingDetailPage() {
                 <Shield className="h-4 w-4" />
                 <AlertTitle>Annonce Vérifiée</AlertTitle>
                 <AlertDescription>
-                  Cette annonce a passé nos contrôles de sécurité IA avec un score de confiance de{" "}
-                  {100 - listing.fraudScore}%.
+                  Score de confiance IA: {100 - listing.fraudScore}%
                 </AlertDescription>
               </Alert>
             )}
@@ -153,8 +199,7 @@ export default function ListingDetailPage() {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Alerte de Sécurité</AlertTitle>
                 <AlertDescription>
-                  Cette annonce présente des signaux d'alerte. Soyez prudent et vérifiez tous les détails avant de
-                  procéder.
+                  Cette annonce présente des signaux d'alerte.
                   {listing.fraudAlerts && (
                     <ul className="list-disc list-inside mt-2">
                       {listing.fraudAlerts.map((alert, i) => (
@@ -173,6 +218,7 @@ export default function ListingDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
+                  {/* Year */}
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-muted rounded-lg flex items-center justify-center">
                       <Calendar className="h-5 w-5 text-muted-foreground" />
@@ -182,7 +228,7 @@ export default function ListingDetailPage() {
                       <p className="font-semibold">{listing.year}</p>
                     </div>
                   </div>
-
+                  {/* Mileage */}
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-muted rounded-lg flex items-center justify-center">
                       <Gauge className="h-5 w-5 text-muted-foreground" />
@@ -192,7 +238,7 @@ export default function ListingDetailPage() {
                       <p className="font-semibold">{listing.mileage.toLocaleString()} km</p>
                     </div>
                   </div>
-
+                  {/* Fuel */}
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-muted rounded-lg flex items-center justify-center">
                       <Fuel className="h-5 w-5 text-muted-foreground" />
@@ -202,7 +248,7 @@ export default function ListingDetailPage() {
                       <p className="font-semibold capitalize">{listing.fuelType}</p>
                     </div>
                   </div>
-
+                  {/* Transmission */}
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-muted rounded-lg flex items-center justify-center">
                       <Settings className="h-5 w-5 text-muted-foreground" />
@@ -214,7 +260,7 @@ export default function ListingDetailPage() {
                       </p>
                     </div>
                   </div>
-
+                  {/* Color */}
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-muted rounded-lg flex items-center justify-center">
                       <Palette className="h-5 w-5 text-muted-foreground" />
@@ -266,30 +312,27 @@ export default function ListingDetailPage() {
                 </CardTitle>
                 <CardDescription>Calculée par notre IA</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {!showInsuranceEstimate ? (
-                  <Button onClick={() => setShowInsuranceEstimate(true)} className="w-full">
-                    Calculer l'Assurance
-                  </Button>
-                ) : (
-                  <>
+              <CardContent>
+                <Button
+                  onClick={() => setShowInsuranceModal(true)}
+                  className="w-full mb-4"
+                >
+                  Ouvrir Estimation
+                </Button>
+
+                {riskScore !== null && insuranceCost !== null && (
+                  <div className="space-y-2">
                     <div className="bg-muted p-4 rounded-lg">
                       <p className="text-sm text-muted-foreground mb-1">Prime Estimée</p>
-                      <p className="text-2xl font-bold">850 TND/an</p>
+                      <p className="text-2xl font-bold">{insuranceCost.toFixed(2)} TND/an</p>
                     </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Risque</span>
-                        <Badge variant="secondary">Moyen</Badge>
-                      </div>
-                      <Separator />
-                      <div className="space-y-1 text-muted-foreground">
-                        <p>• Âge du véhicule: Impact moyen</p>
-                        <p>• Kilométrage: Impact faible</p>
-                        <p>• Historique: Bon</p>
-                      </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Risque</span>
+                      <Badge variant="secondary">{riskLabel}</Badge>
                     </div>
-                  </>
+                    <Separator />
+                    {message && <p className="text-muted-foreground">{message}</p>}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -325,6 +368,79 @@ export default function ListingDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Insurance Modal */}
+      {showInsuranceModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 relative">
+            <button
+              onClick={() => setShowInsuranceModal(false)}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <X />
+            </button>
+            <h2 className="text-xl font-bold mb-4">Informations du véhicule</h2>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-muted-foreground">Année</label>
+                <input
+                  type="number"
+                  className="w-full border rounded p-1"
+                  value={formData.carYear}
+                  onChange={(e) =>
+                    setFormData({ ...formData, carYear: Number(e.target.value) })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-muted-foreground">Valeur du véhicule</label>
+                <input
+                  type="number"
+                  className="w-full border rounded p-1"
+                  value={formData.carValue}
+                  onChange={(e) =>
+                    setFormData({ ...formData, carValue: Number(e.target.value) })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-muted-foreground">Nombre d'accidents</label>
+                <input
+                  type="number"
+                  className="w-full border rounded p-1"
+                  value={formData.numberOfAccidents}
+                  onChange={(e) =>
+                    setFormData({ ...formData, numberOfAccidents: Number(e.target.value) })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-muted-foreground">Années d'expérience</label>
+                <input
+                  type="number"
+                  className="w-full border rounded p-1"
+                  value={formData.yearsOfExperience}
+                  onChange={(e) =>
+                    setFormData({ ...formData, yearsOfExperience: Number(e.target.value) })
+                  }
+                />
+              </div>
+
+              <Button
+                onClick={handleCalculate}
+                className="w-full mt-2"
+                disabled={loadingEstimate}
+              >
+                {loadingEstimate ? "Calcul en cours..." : "Valider et Calculer"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
