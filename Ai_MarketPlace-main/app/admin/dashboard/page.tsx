@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Users, Car, AlertTriangle, CheckCircle2, XCircle, TrendingUp, Shield, Eye, MessageSquare } from "lucide-react"
+import { Users, Car, AlertTriangle, CheckCircle2, XCircle, TrendingUp, Shield, Eye, MessageSquare, Plus, List } from "lucide-react"
 import { getListings, mockUsers } from "@/lib/mock-data"
 import type { CarListing } from "@/lib/types"
 import { AdminFraudDashboard } from "@/app/fraud_detection/AdminFraudDashboard"
+import Link from "next/link"
 
 export default function AdminDashboard() {
   const { user, isLoading } = useAuth()
@@ -35,12 +36,10 @@ export default function AdminDashboard() {
   const totalUsers = mockUsers.length
 
   const handleApprove = (listingId: string) => {
-    // TODO: Approve listing
     console.log("[v0] Approving listing:", listingId)
   }
 
   const handleReject = (listingId: string) => {
-    // TODO: Reject listing
     console.log("[v0] Rejecting listing:", listingId)
   }
 
@@ -49,11 +48,32 @@ export default function AdminDashboard() {
       <Navbar />
 
       <div className="container mx-auto px-4 py-8">
+        {/* ✅ UPDATED: Header with Quick Actions */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Panneau d'Administration</h1>
-          <p className="text-muted-foreground">
-            Gérez les utilisateurs, modérez les annonces et surveillez la plateforme
-          </p>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Panneau d'Administration</h1>
+              <p className="text-muted-foreground">
+                Gérez les utilisateurs, modérez les annonces et surveillez la plateforme
+              </p>
+            </div>
+            
+            {/* ✅ NEW: Quick Action Buttons */}
+            <div className="flex gap-3">
+              <Link href="/annonces">
+                <Button variant="outline" className="gap-2">
+                  <List className="h-4 w-4" />
+                  Voir Toutes les Annonces
+                </Button>
+              </Link>
+              <Link href="/annonces/create">
+                <Button className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Créer Annonce
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -114,12 +134,10 @@ export default function AdminDashboard() {
         {/* Tabs */}
         <Tabs defaultValue="fraud-detection" className="space-y-6">
           <TabsList>
-            {/* ✅ NEW: AI Fraud Detection Tab */}
             <TabsTrigger value="fraud-detection" className="gap-2">
               <Shield className="h-4 w-4" />
               Détection IA
             </TabsTrigger>
-
             <TabsTrigger value="pending">
               En Attente
               {pendingListings.length > 0 && (
@@ -140,7 +158,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="users">Utilisateurs</TabsTrigger>
           </TabsList>
 
-          {/* ✅ NEW: AI Fraud Detection Tab Content */}
+          {/* AI Fraud Detection Tab */}
           <TabsContent value="fraud-detection">
             <Card>
               <CardHeader>
@@ -202,7 +220,6 @@ export default function AdminDashboard() {
                             </div>
                           </div>
 
-                          {/* AI Analysis */}
                           <div className="flex items-center gap-4 mb-3">
                             {listing.fraudScore !== undefined && (
                               <Badge
