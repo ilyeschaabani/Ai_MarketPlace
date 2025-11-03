@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS annonces (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_voiture INT NOT NULL,
+        annee INT,
+        puissance VARCHAR(50),
+        marque VARCHAR(100),
+        carburant VARCHAR(50),
+        transmission VARCHAR(50),
+        odometer INT COMMENT 'Kilométrage du véhicule',
+        notRepairedDamage BOOLEAN DEFAULT FALSE COMMENT 'Dommages non réparés',
+        fraud_prediction INT DEFAULT NULL COMMENT 'Prédiction de fraude (0=normal, 1=fraude)',
+        fraud_probability DECIMAL(5,4) DEFAULT NULL COMMENT 'Probabilité de fraude (0-1)',
+        fraud_level VARCHAR(20) DEFAULT NULL COMMENT 'Niveau de fraude (low, medium, high)',
+        date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_voiture) REFERENCES voitures(id) ON DELETE CASCADE,
+        INDEX idx_id_voiture (id_voiture),
+        INDEX idx_marque (marque),
+        INDEX idx_odometer (odometer),
+        INDEX idx_fraud_prediction (fraud_prediction)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
