@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Users, Car, AlertTriangle, CheckCircle2, XCircle, TrendingUp, Shield, Eye, MessageSquare } from "lucide-react"
 import { getListings, mockUsers } from "@/lib/mock-data"
 import type { CarListing } from "@/lib/types"
+import { AdminFraudDashboard } from "@/app/fraud_detection/AdminFraudDashboard"
 
 export default function AdminDashboard() {
   const { user, isLoading } = useAuth()
@@ -111,8 +112,14 @@ export default function AdminDashboard() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="pending" className="space-y-6">
+        <Tabs defaultValue="fraud-detection" className="space-y-6">
           <TabsList>
+            {/* ✅ NEW: AI Fraud Detection Tab */}
+            <TabsTrigger value="fraud-detection" className="gap-2">
+              <Shield className="h-4 w-4" />
+              Détection IA
+            </TabsTrigger>
+
             <TabsTrigger value="pending">
               En Attente
               {pendingListings.length > 0 && (
@@ -132,6 +139,24 @@ export default function AdminDashboard() {
             <TabsTrigger value="active">Annonces Actives</TabsTrigger>
             <TabsTrigger value="users">Utilisateurs</TabsTrigger>
           </TabsList>
+
+          {/* ✅ NEW: AI Fraud Detection Tab Content */}
+          <TabsContent value="fraud-detection">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Détection de Fraude avec Intelligence Artificielle
+                </CardTitle>
+                <CardDescription>
+                  Système automatisé de détection basé sur l'apprentissage automatique (Machine Learning) pour identifier les annonces frauduleuses en temps réel
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AdminFraudDashboard />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Pending Listings */}
           <TabsContent value="pending">
