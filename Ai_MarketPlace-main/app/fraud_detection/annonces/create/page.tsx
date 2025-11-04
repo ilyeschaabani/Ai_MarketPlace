@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
@@ -63,8 +63,8 @@ export default function CreateAnnoncePage() {
     description: "",
   })
 
-  // Debounce timer for description analysis
-  const [descriptionTimer, setDescriptionTimer] = useState<NodeJS.Timeout | null>(null)
+  // ✅ Use useRef to persist timer across renders
+  const descriptionTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // ✅ Fetch available cars from the database
   useEffect(() => {
@@ -95,6 +95,15 @@ export default function CreateAnnoncePage() {
     fetchVoitures()
   }, [])
 
+  // ✅ Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (descriptionTimerRef.current) {
+        clearTimeout(descriptionTimerRef.current)
+      }
+    }
+  }, [])
+
   // ✅ Update selected voiture details
   const handleVoitureSelect = (voitureId: string) => {
     const voiture = voitures.find(v => v.id.toString() === voitureId)
@@ -107,37 +116,47 @@ export default function CreateAnnoncePage() {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  // ✅ Handle description change with AI analysis (debounced)
+  // ✅ Handle description change with FIXED debounced AI analysis
   const handleDescriptionChange = (value: string) => {
     setFormData(prev => ({ ...prev, description: value }))
     
-    // Clear previous timer
-    if (descriptionTimer) {
-      clearTimeout(descriptionTimer)
+    // ✅ Clear previous timer using ref
+    if (descriptionTimerRef.current) {
+      clearTimeout(descriptionTimerRef.current)
+      descriptionTimerRef.current = null
     }
     
     // Reset analysis if too short
     if (value.length < 50) {
       setAiAnalysis(null)
+      setAnalyzingDescription(false)
       return
     }
     
-    // Debounce: analyze after 1 second of no typing
-    const timer = setTimeout(async () => {
-      setAnalyzingDescription(true)
+    // Show loading immediately
+    setAnalyzingDescription(true)
+    
+    // ✅ Debounce: analyze after 1 second of no typing
+    descriptionTimerRef.current = setTimeout(async () => {
+      console.log('🔍 Starting AI analysis for:', value.substring(0, 50) + '...')
+      
       try {
         const analysis = await huggingFaceService.analyzeDescription(value)
+        
         if (analysis.success) {
+          console.log('✅ AI analysis completed:', analysis.data)
           setAiAnalysis(analysis.data)
+        } else {
+          console.warn('⚠️ AI analysis failed:', analysis.error)
+          setAiAnalysis(null)
         }
       } catch (error) {
-        console.error('AI analysis failed:', error)
+        console.error('❌ AI analysis error:', error)
+        setAiAnalysis(null)
       } finally {
         setAnalyzingDescription(false)
       }
-    }, 1000)
-    
-    setDescriptionTimer(timer)
+    }, 1000) // 1 second delay
   }
 
   // ✅ Submit form
@@ -366,7 +385,7 @@ export default function CreateAnnoncePage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* ✅ SELECT EXISTING CAR */}
+                {/* SELECT CAR */}
                 <div className="space-y-2">
                   <Label htmlFor="id_voiture">Sélectionner une Voiture *</Label>
                   <Select
@@ -403,7 +422,7 @@ export default function CreateAnnoncePage() {
                   </div>
                 </div>
 
-                {/* ✅ SHOW SELECTED CAR DETAILS */}
+                {/* SELECTED CAR DETAILS */}
                 {selectedVoiture && (
                   <Card className="bg-muted/50">
                     <CardContent className="pt-6">
@@ -433,7 +452,7 @@ export default function CreateAnnoncePage() {
                   </Card>
                 )}
 
-                {/* ✅ ODOMETER (REQUIRED) */}
+                {/* ODOMETER */}
                 <div className="space-y-2">
                   <Label htmlFor="odometer">Kilométrage Actuel *</Label>
                   <Input
@@ -445,12 +464,9 @@ export default function CreateAnnoncePage() {
                     onChange={(e) => handleChange("odometer", e.target.value)}
                     required
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Le kilométrage actuel de la voiture au moment de l&apos;annonce
-                  </p>
                 </div>
 
-                {/* ✅ PRICE (REQUIRED) */}
+                {/* PRICE */}
                 <div className="space-y-2">
                   <Label htmlFor="prix">Prix Demandé (€) *</Label>
                   <Input
@@ -463,12 +479,9 @@ export default function CreateAnnoncePage() {
                     onChange={(e) => handleChange("prix", e.target.value)}
                     required
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Le prix que vous souhaitez pour cette voiture
-                  </p>
                 </div>
 
-                {/* ✅ NOT REPAIRED DAMAGE (REQUIRED) */}
+                {/* DAMAGE */}
                 <div className="space-y-2">
                   <Label htmlFor="notRepairedDamage">Dommages Non Réparés *</Label>
                   <Select
@@ -484,15 +497,12 @@ export default function CreateAnnoncePage() {
                       <SelectItem value="yes">Oui - Dommages présents</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    La voiture a-t-elle des dommages non réparés? (accidents, rayures importantes, etc.)
-                  </p>
                 </div>
 
-                {/* ✅ DESCRIPTION (OPTIONAL - AI ANALYZED) */}
+                {/* DESCRIPTION - AI ANALYZED */}
                 <div className="space-y-2">
                   <Label htmlFor="description">
-                    Description <span className="text-muted-foreground">(optionnel - analysée par IA)</span>
+                    Description <span className="text-muted-foreground">(optionnel - analysée par IA en temps réel)</span>
                   </Label>
                   <Textarea
                     id="description"
@@ -503,9 +513,9 @@ export default function CreateAnnoncePage() {
                     className="resize-none"
                   />
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>{formData.description.length} caractères</span>
+                    <span>{formData.description.length} caractères {formData.description.length >= 50 ? '✓' : '(minimum 50 pour analyse IA)'}</span>
                     {analyzingDescription && (
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 text-primary">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         Analyse IA en cours...
                       </span>
@@ -513,7 +523,7 @@ export default function CreateAnnoncePage() {
                   </div>
                 </div>
 
-                {/* ✅ AI ANALYSIS DISPLAY */}
+                {/* AI ANALYSIS DISPLAY */}
                 {aiAnalysis && (
                   <Card className={`border-2 ${
                     aiAnalysis.fraudScore > 0.7 ? 'border-red-500 bg-red-50 dark:bg-red-950/20' :
@@ -523,7 +533,7 @@ export default function CreateAnnoncePage() {
                     <CardHeader className="pb-4">
                       <CardTitle className="flex items-center gap-2 text-lg">
                         <Shield className="h-5 w-5" />
-                        🧠 Analyse IA de la Description
+                        🧠 Analyse IA de la Description (Temps Réel)
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
