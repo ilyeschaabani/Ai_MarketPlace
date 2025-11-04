@@ -34,7 +34,7 @@ export function CreateAnnonceForm({ voitureId }: CreateAnnonceFormProps) {
     setFraudWarning(null);
 
     try {
-      const result = await annonceService.createAnnonce(formData);
+      const result = await annonceService.createAnnonceWithAI(formData);
 
       if (result.fraud_detection) {
         const { is_fraud, probability, level } = result.fraud_detection;

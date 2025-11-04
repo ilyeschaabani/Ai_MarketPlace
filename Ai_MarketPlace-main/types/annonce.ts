@@ -1,8 +1,11 @@
+import { AIAnalysisResult } from "@/app/fraud_detection/HuggingFaceService";
+
 export interface Annonce {
   id: number;
   id_voiture: number;
   odometer: number;
   notRepairedDamage: boolean;
+  description?: string; //hugging face attribute
   fraud_prediction: number;
   fraud_probability: number;
   fraud_level: 'low' | 'medium' | 'high';
@@ -22,6 +25,8 @@ export interface CreateAnnonceData {
   id_voiture: number;
   odometer: number;
   notRepairedDamage: boolean;
+  prix?: number;
+  description?: string; //hugging face attribute
 }
 
 export interface FraudDetectionResult {
@@ -33,9 +38,14 @@ export interface FraudDetectionResult {
 export interface AnnonceResponse {
   success: boolean;
   message: string;
-  data: Annonce;
+  data?: Annonce;
   fraud_detection?: FraudDetectionResult;
   error?: string;
+}
+// ✅ ADD THIS - Enhanced Response with AI
+export interface EnhancedAnnonceResponse extends AnnonceResponse {
+  aiAnalysis?: AIAnalysisResult;
+  combinedFraudScore?: number;
 }
 
 export interface AnnoncesListResponse {
@@ -43,4 +53,9 @@ export interface AnnoncesListResponse {
   data?: Annonce[];
   message?: string;
   error?: string; // ✅ ADD THIS LINE
+}
+export interface DeleteAnnonceResponse {
+  success: boolean;
+  message: string;
+  error?: string;
 }

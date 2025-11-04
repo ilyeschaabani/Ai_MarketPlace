@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import type { Annonce, CreateAnnonceData, AnnonceResponse } from '@/types/annonce';
+import { huggingFaceService } from './HuggingFaceService'; // ✅ ADD THIS
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api/annonces';
 
@@ -22,10 +23,42 @@ export const annonceService = {
    * @param data - Annonce data to create
    * @returns Promise with annonce and fraud detection results
    */
-  createAnnonce: async (data: CreateAnnonceData): Promise<AnnonceResponse> => {
+   /**
+   * ✅ NEW: Create annonce with AI description analysis
+   */
+  createAnnonceWithAI: async (
+    data: CreateAnnonceData,
+    description?: string
+  ): Promise<AnnonceResponse & { 
+    aiAnalysis?: any; 
+    combinedFraudScore?: number; }> => {
     try {
+      // Step 1: Analyze description with AI (if provided)
+      let aiAnalysis = null;
+      if (description) {
+        aiAnalysis = await huggingFaceService.analyzeDescription(description);
+        
+        // If highly suspicious, warn user
+        if (aiAnalysis.data.fraudScore > 0.7) {
+          console.warn('🚨 High fraud score detected:', aiAnalysis.data.redFlags);
+        }
+      }
+
+      // Step 2: Create annonce with ML fraud detection
       const response = await axios.post<AnnonceResponse>(API_URL, data);
-      return response.data;
+
+      // Step 3: Combine both fraud scores
+      const mlFraudScore = response.data.data?.fraud_probability || 0;
+      const aiFraudScore = aiAnalysis?.data.fraudScore || 0;
+      
+      // Combined score: 60% ML model + 40% AI description
+      const combinedFraudScore = (mlFraudScore * 0.6) + (aiFraudScore * 0.4);
+
+      return {
+        ...response.data,
+        aiAnalysis: aiAnalysis?.data,
+        combinedFraudScore: Math.round(combinedFraudScore * 100) / 100
+      };
     } catch (error) {
       return handleError(error);
     }

@@ -8,12 +8,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Car, Loader2, Shield, Search } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, Car, Loader2, Shield, Search, AlertTriangle, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { annonceService } from "@/app/fraud_detection/annonceService"
+import { huggingFaceService } from "@/app/fraud_detection/HuggingFaceService"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import type { Annonce, CreateAnnonceData } from "@/types/annonce";
+import type { CreateAnnonceData } from "@/types/annonce"
 
 interface Voiture {
   id: number
@@ -24,22 +27,44 @@ interface Voiture {
   matricule: string
 }
 
+interface AIAnalysis {
+  isSuspicious: boolean
+  sentiment: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL'
+  sentimentScore: number
+  fraudScore: number
+  redFlags: string[]
+  recommendations: string[]
+}
+
 export default function CreateAnnoncePage() {
   const { user } = useAuth()
   const router = useRouter()
+  
+  // Loading states
   const [loading, setLoading] = useState(false)
   const [loadingCars, setLoadingCars] = useState(true)
+  const [analyzingDescription, setAnalyzingDescription] = useState(false)
+  
+  // Error and alerts
   const [error, setError] = useState("")
   const [fraudAlert, setFraudAlert] = useState<any>(null)
+  
+  // Data states
   const [voitures, setVoitures] = useState<Voiture[]>([])
   const [selectedVoiture, setSelectedVoiture] = useState<Voiture | null>(null)
+  const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null)
 
+  // Form data
   const [formData, setFormData] = useState({
     id_voiture: "",
     odometer: "",
     prix: "",
     notRepairedDamage: "no",
+    description: "",
   })
+
+  // Debounce timer for description analysis
+  const [descriptionTimer, setDescriptionTimer] = useState<NodeJS.Timeout | null>(null)
 
   // ✅ Fetch available cars from the database
   useEffect(() => {
@@ -70,19 +95,71 @@ export default function CreateAnnoncePage() {
     fetchVoitures()
   }, [])
 
-  // ✅ Update selected voiture details when user selects a car
+  // ✅ Update selected voiture details
   const handleVoitureSelect = (voitureId: string) => {
     const voiture = voitures.find(v => v.id.toString() === voitureId)
     setSelectedVoiture(voiture || null)
     setFormData(prev => ({ ...prev, id_voiture: voitureId }))
   }
 
+  // ✅ Handle form field changes
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
+  // ✅ Handle description change with AI analysis (debounced)
+  const handleDescriptionChange = (value: string) => {
+    setFormData(prev => ({ ...prev, description: value }))
+    
+    // Clear previous timer
+    if (descriptionTimer) {
+      clearTimeout(descriptionTimer)
+    }
+    
+    // Reset analysis if too short
+    if (value.length < 50) {
+      setAiAnalysis(null)
+      return
+    }
+    
+    // Debounce: analyze after 1 second of no typing
+    const timer = setTimeout(async () => {
+      setAnalyzingDescription(true)
+      try {
+        const analysis = await huggingFaceService.analyzeDescription(value)
+        if (analysis.success) {
+          setAiAnalysis(analysis.data)
+        }
+      } catch (error) {
+        console.error('AI analysis failed:', error)
+      } finally {
+        setAnalyzingDescription(false)
+      }
+    }, 1000)
+    
+    setDescriptionTimer(timer)
+  }
+
+  // ✅ Submit form
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!user) {
+      alert("Vous devez être connecté pour créer une annonce")
+      return
+    }
+
+    // ✅ Check AI warnings before submission
+    if (aiAnalysis && aiAnalysis.fraudScore > 0.5) {
+      const proceed = confirm(
+        `⚠️ Notre IA a détecté des problèmes potentiels dans votre description:\n\n` +
+        aiAnalysis.redFlags.join('\n') +
+        `\n\nScore de fraude IA: ${(aiAnalysis.fraudScore * 100).toFixed(0)}%` +
+        `\n\nVoulez-vous continuer quand même?`
+      )
+      if (!proceed) return
+    }
+
     setLoading(true)
     setError("")
     setFraudAlert(null)
@@ -95,35 +172,68 @@ export default function CreateAnnoncePage() {
         return
       }
 
-      // ✅ Prepare data according to backend CreateAnnonceData type
-      const annonceData = {
+      // ✅ Prepare data
+      const annonceData: CreateAnnonceData = {
         id_voiture: parseInt(formData.id_voiture),
         odometer: parseInt(formData.odometer),
         prix: parseFloat(formData.prix),
-        notRepairedDamage: formData.notRepairedDamage === "yes", // ✅ Correct: boolean
+        notRepairedDamage: formData.notRepairedDamage === "yes",
+        description: formData.description || undefined,
       }
 
       console.log('Sending annonce data:', annonceData)
 
-      // Call API to create annonce
-const response = await annonceService.createAnnonce(annonceData)
+      // ✅ Call API with AI analysis
+      const response = await annonceService.createAnnonceWithAI(
+        annonceData,
+        formData.description
+      )
+
       console.log('Response:', response)
 
       if (response.success) {
-        // Check fraud detection result
+        // ✅ Build success message with fraud detection results
+        let message = '✅ Annonce créée avec succès!\n\n'
+        
+        // ML Fraud Detection
+        if (response.data) {
+          message += `🤖 Détection ML:\n`
+          message += `  • Fraude détectée: ${response.data.fraud_prediction === 1 ? "Oui ⚠️" : "Non ✓"}\n`
+          message += `  • Niveau de risque: ${response.data.fraud_level}\n`
+          message += `  • Score de confiance: ${((1 - response.data.fraud_probability) * 100).toFixed(1)}%\n\n`
+        }
+        
+        // AI Description Analysis
+        if (response.aiAnalysis) {
+          message += `🧠 Analyse IA Description:\n`
+          message += `  • Score de fraude: ${(response.aiAnalysis.fraudScore * 100).toFixed(0)}%\n`
+          message += `  • Sentiment: ${response.aiAnalysis.sentiment}\n`
+          if (response.aiAnalysis.redFlags.length > 0) {
+            message += `  • Alertes: ${response.aiAnalysis.redFlags.length}\n`
+          }
+          message += '\n'
+        }
+        
+        // Combined Score
+        if (response.combinedFraudScore !== undefined) {
+          message += `📊 Score Combiné: ${((1 - response.combinedFraudScore) * 100).toFixed(1)}%`
+        }
+
+        // Check if fraud detected
         if (response.data?.fraud_prediction === 1) {
           setFraudAlert({
             level: response.data.fraud_level,
             probability: response.data.fraud_probability,
             prediction: response.data.fraud_prediction,
+            aiAnalysis: response.aiAnalysis,
+            combinedScore: response.combinedFraudScore,
           })
         } else {
-          // Redirect to seller dashboard on success
-          alert('Annonce créée avec succès!')
-          router.push("/seller/dashboard")
+          alert(message)
+          router.push("/fraud_detection/annonces")
         }
       } else {
-        setError(response.message || response.error || "Erreur lors de la création de l'annonce")
+        setError(response.error || "Erreur lors de la création de l'annonce")
       }
     } catch (err: any) {
       console.error('Error creating annonce:', err)
@@ -140,10 +250,10 @@ const response = await annonceService.createAnnonce(annonceData)
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Header */}
         <div className="mb-8">
-          <Link href="/seller/dashboard">
+          <Link href="/fraud_detection/annonces">
             <Button variant="ghost" className="gap-2 mb-4">
               <ArrowLeft className="h-4 w-4" />
-              Retour au tableau de bord
+              Retour aux annonces
             </Button>
           </Link>
 
@@ -154,7 +264,7 @@ const response = await annonceService.createAnnonce(annonceData)
             <div>
               <h1 className="text-3xl font-bold">Créer une Annonce</h1>
               <p className="text-muted-foreground">
-                Sélectionnez une voiture et ajoutez les détails de l'annonce
+                Sélectionnez une voiture et ajoutez les détails de l&apos;annonce
               </p>
             </div>
           </div>
@@ -166,9 +276,9 @@ const response = await annonceService.createAnnonce(annonceData)
             <div className="flex items-center gap-3">
               <Shield className="h-5 w-5 text-primary" />
               <div className="flex-1">
-                <p className="text-sm font-medium">Protection Anti-Fraude IA</p>
+                <p className="text-sm font-medium">Protection Anti-Fraude IA Double</p>
                 <p className="text-xs text-muted-foreground">
-                  Votre annonce sera automatiquement vérifiée par notre système d'intelligence artificielle
+                  Votre annonce sera vérifiée par notre ML + analyse de description par Hugging Face AI
                 </p>
               </div>
             </div>
@@ -186,28 +296,49 @@ const response = await annonceService.createAnnonce(annonceData)
         {fraudAlert && (
           <Alert variant="destructive" className="mb-6">
             <AlertDescription>
-              <div className="space-y-2">
-                <p className="font-semibold">⚠️ Alerte Fraude Détectée!</p>
-                <p className="text-sm">
-                  Notre système IA a détecté que cette annonce pourrait être suspecte:
+              <div className="space-y-3">
+                <p className="font-semibold text-lg">⚠️ Alerte Fraude Détectée!</p>
+                
+                <div className="space-y-2 text-sm">
+                  <p className="font-medium">🤖 Détection ML:</p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li>Niveau de risque: <strong>{fraudAlert.level}</strong></li>
+                    <li>Probabilité de fraude: <strong>{(fraudAlert.probability * 100).toFixed(1)}%</strong></li>
+                  </ul>
+                </div>
+
+                {fraudAlert.aiAnalysis && (
+                  <div className="space-y-2 text-sm">
+                    <p className="font-medium">🧠 Analyse IA Description:</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Score de fraude: <strong>{(fraudAlert.aiAnalysis.fraudScore * 100).toFixed(0)}%</strong></li>
+                      {fraudAlert.aiAnalysis.redFlags.length > 0 && (
+                        <li>Problèmes: <strong>{fraudAlert.aiAnalysis.redFlags.join(', ')}</strong></li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {fraudAlert.combinedScore !== undefined && (
+                  <div className="text-sm pt-2 border-t">
+                    <p>📊 Score Combiné: <strong>{((1 - fraudAlert.combinedScore) * 100).toFixed(1)}%</strong></p>
+                  </div>
+                )}
+
+                <p className="text-sm mt-3 font-medium">
+                  ⚠️ Cette annonce nécessite une révision manuelle par un administrateur.
                 </p>
-                <ul className="text-sm list-disc list-inside space-y-1">
-                  <li>Niveau de risque: <strong>{fraudAlert.level}</strong></li>
-                  <li>Probabilité de fraude: <strong>{(fraudAlert.probability * 100).toFixed(1)}%</strong></li>
-                </ul>
-                <p className="text-sm mt-2">
-                  Veuillez vérifier les informations ou contactez le support.
-                </p>
-                <div className="flex gap-2 mt-3">
-                  <Button size="sm" onClick={() => router.push("/seller/dashboard")}>
-                    Retour au Dashboard
+
+                <div className="flex gap-2 mt-4">
+                  <Button size="sm" onClick={() => router.push("/fraud_detection/annonces")}>
+                    Voir mes annonces
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => setFraudAlert(null)}
                   >
-                    Modifier l'Annonce
+                    Modifier l&apos;annonce
                   </Button>
                 </div>
               </div>
@@ -228,7 +359,7 @@ const response = await annonceService.createAnnonce(annonceData)
         {!loadingCars && (
           <Card>
             <CardHeader>
-              <CardTitle>Informations de l'Annonce</CardTitle>
+              <CardTitle>Informations de l&apos;Annonce</CardTitle>
               <CardDescription>
                 Remplissez tous les champs requis avec précision
               </CardDescription>
@@ -261,7 +392,6 @@ const response = await annonceService.createAnnonce(annonceData)
                     </SelectContent>
                   </Select>
                   
-                  {/* Link to add new car if needed */}
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
                     <Search className="h-4 w-4" />
                     <span>
@@ -359,9 +489,132 @@ const response = await annonceService.createAnnonce(annonceData)
                   </p>
                 </div>
 
+                {/* ✅ DESCRIPTION (OPTIONAL - AI ANALYZED) */}
+                <div className="space-y-2">
+                  <Label htmlFor="description">
+                    Description <span className="text-muted-foreground">(optionnel - analysée par IA)</span>
+                  </Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Décrivez votre voiture: état général, équipements, historique d'entretien, raison de la vente..."
+                    value={formData.description}
+                    onChange={(e) => handleDescriptionChange(e.target.value)}
+                    rows={6}
+                    className="resize-none"
+                  />
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>{formData.description.length} caractères</span>
+                    {analyzingDescription && (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Analyse IA en cours...
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* ✅ AI ANALYSIS DISPLAY */}
+                {aiAnalysis && (
+                  <Card className={`border-2 ${
+                    aiAnalysis.fraudScore > 0.7 ? 'border-red-500 bg-red-50 dark:bg-red-950/20' :
+                    aiAnalysis.fraudScore > 0.4 ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20' :
+                    'border-green-500 bg-green-50 dark:bg-green-950/20'
+                  }`}>
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Shield className="h-5 w-5" />
+                        🧠 Analyse IA de la Description
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Fraud Score */}
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <span className="text-sm font-medium">Score de Fraude</span>
+                          <span className="text-sm font-bold">
+                            {(aiAnalysis.fraudScore * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div
+                            className={`h-2.5 rounded-full transition-all ${
+                              aiAnalysis.fraudScore > 0.7 ? 'bg-red-500' :
+                              aiAnalysis.fraudScore > 0.4 ? 'bg-yellow-500' :
+                              'bg-green-500'
+                            }`}
+                            style={{ width: `${aiAnalysis.fraudScore * 100}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Sentiment */}
+                      <div className="flex items-center justify-between p-3 bg-background rounded-lg">
+                        <span className="text-sm font-medium">Sentiment</span>
+                        <Badge variant={
+                          aiAnalysis.sentiment === 'POSITIVE' ? 'default' : 
+                          aiAnalysis.sentiment === 'NEGATIVE' ? 'destructive' : 
+                          'secondary'
+                        }>
+                          {aiAnalysis.sentiment}
+                        </Badge>
+                      </div>
+
+                      {/* Red Flags */}
+                      {aiAnalysis.redFlags.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4" />
+                            Problèmes Détectés:
+                          </p>
+                          <ul className="space-y-1">
+                            {aiAnalysis.redFlags.map((flag: string, index: number) => (
+                              <li key={index} className="text-sm text-red-700 dark:text-red-400 flex items-start gap-2">
+                                <span className="mt-0.5">•</span>
+                                <span>{flag}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Recommendations */}
+                      {aiAnalysis.recommendations.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t">
+                          <p className="text-sm font-medium flex items-center gap-2">
+                            💡 Recommandations:
+                          </p>
+                          <ul className="space-y-1">
+                            {aiAnalysis.recommendations.map((rec: string, index: number) => (
+                              <li key={index} className="text-sm text-blue-700 dark:text-blue-400 flex items-start gap-2">
+                                <span className="mt-0.5">•</span>
+                                <span>{rec}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* All Clear */}
+                      {aiAnalysis.redFlags.length === 0 && (
+                        <div className="flex items-center gap-2 text-green-700 dark:text-green-400 p-3 bg-background rounded-lg">
+                          <CheckCircle className="h-4 w-4" />
+                          <span className="text-sm font-medium">
+                            ✅ Description semble légitime et bien rédigée
+                          </span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Submit Buttons */}
-                <div className="flex gap-4">
-                  <Button type="submit" disabled={loading || !formData.id_voiture} className="flex-1">
+                <div className="flex gap-4 pt-4">
+                  <Button 
+                    type="submit" 
+                    disabled={loading || !formData.id_voiture} 
+                    className="flex-1"
+                    size="lg"
+                  >
                     {loading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -374,12 +627,17 @@ const response = await annonceService.createAnnonce(annonceData)
                       </>
                     )}
                   </Button>
-                  <Link href="/seller/dashboard">
-                    <Button type="button" variant="outline">
+                  <Link href="/fraud_detection/annonces">
+                    <Button type="button" variant="outline" size="lg">
                       Annuler
                     </Button>
                   </Link>
                 </div>
+
+                {/* Help Text */}
+                <p className="text-xs text-center text-muted-foreground pt-2">
+                  En créant cette annonce, vous acceptez que vos données soient analysées par nos systèmes IA pour détecter les fraudes
+                </p>
               </form>
             </CardContent>
           </Card>
