@@ -943,22 +943,6 @@ docker-compose up -d
 
 MIT License - See [LICENSE](LICENSE) file for details
 
----
-
-## 👥 **Team**
-
-- **ML Engineer** - Fraud detection model training
-- **Backend Developer** - Flask API + Next.js routes
-- **Frontend Developer** - UI/UX + real-time AI integration
-- **AI Specialist** - Hugging Face integration
-
----
-
-## 📞 **Support**
-
-- 📧 Email: support@carmarketplace.com
-- 💬 Discord: https://discord.gg/carmarketplace
-- 📖 Docs: https://docs.carmarketplace.com
 
 ---
 
