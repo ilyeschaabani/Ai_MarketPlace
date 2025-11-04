@@ -35,4 +35,12 @@ export interface AnnonceResponse {
   message: string;
   data: Annonce;
   fraud_detection?: FraudDetectionResult;
+  error?: string;
+}
+
+export interface AnnoncesListResponse {
+  success: boolean;
+  data?: Annonce[];
+  message?: string;
+  error?: string; // ✅ ADD THIS LINE
 }

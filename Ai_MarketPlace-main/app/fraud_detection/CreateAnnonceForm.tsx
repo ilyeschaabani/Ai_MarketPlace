@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import type { CreateAnnonceData } from '@/types/annonce';
+import type { Annonce, CreateAnnonceData } from '@/types/annonce';
 
 interface CreateAnnonceFormProps {
   voitureId?: number;

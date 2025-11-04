@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import type { Annonce, CreateAnnonceData, AnnonceResponse } from '@/types/annonce';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/annonces';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api/annonces';
 
 // Error handler helper
 const handleError = (error: any): never => {
