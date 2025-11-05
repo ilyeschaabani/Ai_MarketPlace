@@ -1,5 +1,6 @@
 const { pool } = require('../db');
 const axios = require('axios');
+const { getInsuranceRisk } = require('../Services/insuranceRisk');
 
 const FRAUD_API_URL = 'http://localhost:5001/predict';
 
@@ -70,12 +71,35 @@ class AnnonceController {
           console.log(`✅ Aucune fraude - Annonce visible (${fraud_level})`);
         }
       }
+
+      // Insurance Risk Analysis
+      console.log('🔍 Analyse du risque d\'assurance en cours...');
+      const insuranceData = {
+        carYear: fraudDetectionData.annee,
+        carValue: donnees.prix || voitureData.prix || 0,
+        numberOfAccidents: Number(donnees.numberOfAccidents || 0),
+        yearsOfExperience: Number(donnees.yearsOfExperience || 0)
+      };
+      
+      const insuranceResult = await getInsuranceRisk(insuranceData);
+      
+      let insurance_risk_score = null;
+      let insurance_cost = null;
+      let insurance_risk_level = null;
+      
+      if (insuranceResult && insuranceResult.riskScore !== null) {
+        insurance_risk_score = insuranceResult.riskScore;
+        insurance_cost = insuranceResult.insuranceCost;
+        insurance_risk_level = insuranceResult.riskLevel;
+        console.log(`✅ Risque d'assurance: ${insurance_risk_level} (${insurance_risk_score}) - Prime: ${insurance_cost} TND/an`);
+      }
       
       const [result] = await connection.query(
         `INSERT INTO annonces
           (id_voiture, annee, puissance, marque, carburant, transmission, odometer, notRepairedDamage, 
-           fraud_prediction, fraud_probability, fraud_level)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           fraud_prediction, fraud_probability, fraud_level,
+           insurance_risk_score, insurance_cost, insurance_risk_level, number_of_accidents, years_of_experience)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           donnees.id_voiture,
           fraudDetectionData.annee,
@@ -87,7 +111,12 @@ class AnnonceController {
           fraudDetectionData.notRepairedDamage,
           fraud_prediction,
           fraud_probability,
-          fraud_level
+          fraud_level,
+          insurance_risk_score,
+          insurance_cost,
+          insurance_risk_level,
+          insuranceData.numberOfAccidents,
+          insuranceData.yearsOfExperience
         ]
       );
 
@@ -104,6 +133,11 @@ class AnnonceController {
           is_fraud: fraudResult.is_fraud,
           probability: fraud_probability,
           level: fraud_level
+        } : null,
+        insurance_analysis: insuranceResult ? {
+          riskScore: insurance_risk_score,
+          insuranceCost: insurance_cost,
+          riskLevel: insurance_risk_level
         } : null,
         status: 201 
       };

@@ -1,32 +1,58 @@
 import { NextResponse } from "next/server"
 
 // AI Model 6: Insurance Risk Analyzer (Ilyes chaabani)
+// Integrated with Flask microservice at http://localhost:5002
 export async function POST(request: Request) {
   try {
-    const { brand, model, year, mileage, driverAge } = await request.json()
+    const { carYear, carValue, numberOfAccidents, yearsOfExperience } = await request.json()
 
-    // TODO: Implement actual insurance risk analysis
-    // This is a placeholder for the Classification & Regression model
-    const baseRisk = 50
-    const yearRisk = (2024 - year) * 2
-    const mileageRisk = mileage / 10000
-    const ageRisk = driverAge < 25 ? 20 : driverAge > 60 ? 10 : 0
+    // Validate required fields
+    if (!carYear || !carValue || numberOfAccidents == null || yearsOfExperience == null) {
+      return NextResponse.json(
+        { error: "Missing required fields: carYear, carValue, numberOfAccidents, yearsOfExperience" },
+        { status: 400 }
+      )
+    }
 
-    const riskScore = Math.min(baseRisk + yearRisk + mileageRisk + ageRisk, 100)
-    const riskCategory = riskScore > 70 ? "high" : riskScore > 40 ? "medium" : "low"
-    const estimatedPremium = 500 + riskScore * 10
+    // Call the Flask Insurance Risk API
+    const INSURANCE_API_URL = process.env.INSURANCE_API_URL || "http://localhost:5002/predict"
+    
+    const response = await fetch(INSURANCE_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        carYear: Number(carYear),
+        carValue: Number(carValue),
+        numberOfAccidents: Number(numberOfAccidents),
+        yearsOfExperience: Number(yearsOfExperience),
+      }),
+    })
 
+    if (!response.ok) {
+      console.error("Insurance API error:", response.statusText)
+      return NextResponse.json(
+        { error: "Insurance risk analysis failed" },
+        { status: 500 }
+      )
+    }
+
+    const data = await response.json()
+
+    // Return the insurance analysis results
     return NextResponse.json({
-      riskScore: Math.round(riskScore),
-      riskCategory,
-      estimatedPremium: Math.round(estimatedPremium),
-      factors: [
-        { factor: "Âge du véhicule", weight: yearRisk },
-        { factor: "Kilométrage", weight: mileageRisk },
-        { factor: "Âge du conducteur", weight: ageRisk },
-      ],
+      success: data.success || true,
+      riskScore: data.riskScore,
+      insuranceCost: data.insuranceCost,
+      riskLevel: data.riskLevel,
+      message: data.message,
     })
   } catch (error) {
-    return NextResponse.json({ error: "Risk analysis failed" }, { status: 500 })
+    console.error("Insurance risk analysis error:", error)
+    return NextResponse.json(
+      { error: "Risk analysis failed", details: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    )
   }
 }

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
-import { Car, LogOut, User, LayoutDashboard, Database } from "lucide-react"
+import { Car, LogOut, User, LayoutDashboard, Database, FileText, Plus } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +46,18 @@ export function Navbar() {
                   <Button variant="ghost" size="sm">
                     <Database className="h-4 w-4 mr-2" />
                     Voitures
+                  </Button>
+                </Link>
+                <Link href="/test-insurance">
+                  <Button variant="ghost" size="sm">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Annonces
+                  </Button>
+                </Link>
+                <Link href="/annonces/new">
+                  <Button variant="default" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nouvelle Annonce
                   </Button>
                 </Link>
                 <Link href={getDashboardLink()}>

@@ -8,21 +8,20 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Import annonces routes
-const annoncesRoutes = require('./Routes/annonces');
-
-// Middleware pour parser le JSON
-app.use(express.json());
-
-app.use('/api/annonces', annoncesRoutes);
-
-// CORS middleware - Configuration pour permettre les requêtes du frontend
+// CORS middleware - MUST BE BEFORE ROUTES! Configuration pour permettre les requêtes du frontend
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:3001'], // Frontend Next.js
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Middleware pour parser le JSON
+app.use(express.json());
+
+// Import annonces routes
+const annoncesRoutes = require('./Routes/annonces');
+app.use('/api/annonces', annoncesRoutes);
 
 // Initialiser le contrôleur
 const voitureController = new VoitureController();
